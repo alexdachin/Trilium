@@ -230,7 +230,25 @@ abstract class AbstractBeccaEntity<T extends AbstractBeccaEntity<T>> {
         const blobNeedsInsert = !sql.getValue("SELECT 1 FROM blobs WHERE blobId = ?", [newBlobId]);
 
         if (!blobNeedsInsert) {
-            return newBlobId;
+            if (!blobStorageService.hasExternalContentColumns()) {
+                // If no external storage support, safe to reuse blob
+                return newBlobId;
+            }
+
+            // Self recover external blob if the file was deleted externally
+            const existingBlob = sql.getRow<{ contentLocation: BlobContentLocation }>(/*sql*/
+                `SELECT contentLocation FROM blobs WHERE blobId = ?`,
+                [newBlobId]
+            );
+
+            const isInternalBlob = existingBlob?.contentLocation === 'internal';
+            if (isInternalBlob || blobStorageService.externalFileExists(existingBlob.contentLocation)) {
+                // If external blob is still present, safe to reuse
+                return newBlobId;
+            }
+
+            // External file is missing, recreate it
+            log.info(`External file missing for blob ${newBlobId}, recreating...`);
         }
 
         // Check if we should store this blob externally

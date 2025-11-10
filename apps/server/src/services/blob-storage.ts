@@ -23,7 +23,7 @@ export class BlobStorageService {
     /**
      * Check if the external content columns (contentLocation, contentLength) exist in the blobs table.
      * This is cached for performance.
-     * Returns false before migration 234 has been applied (for example when applying older migrations).
+     * Returns false before migration 234 has been applied (aka when applying older migrations).
      */
     hasExternalContentColumns(): boolean {
         if (!this._hasExternalContentColumns) {
@@ -122,6 +122,19 @@ export class BlobStorageService {
         }
 
         return blob.getContentLength(content) > config.ExternalBlobStorage.thresholdBytes;
+    }
+
+    /**
+     * Check if an external blob file exists
+     */
+    externalFileExists(contentLocation: BlobContentLocation): boolean {
+        if (contentLocation === "internal" || !contentLocation.startsWith("file://")) {
+            return false;
+        }
+
+        const relativePath = contentLocation.replace("file://", "");
+        const filePath = path.join(this.externalBlobPath, relativePath);
+        return fs.existsSync(filePath);
     }
 }
 
